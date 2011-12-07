@@ -1,0 +1,1228 @@
+<?php
+
+/*
+ +--------------------------------------------------------------------+
+ | CiviCRM version 3.3                                                |
+ +--------------------------------------------------------------------+
+ | Copyright CiviCRM LLC (c) 2004-2010                                |
+ +--------------------------------------------------------------------+
+ | This file is a part of CiviCRM.                                    |
+ |                                                                    |
+ | CiviCRM is free software; you can copy, modify, and distribute it  |
+ | under the terms of the GNU Affero General Public License           |
+ | Version 3, 19 November 2007 and the CiviCRM Licensing Exception.   |
+ |                                                                    |
+ | CiviCRM is distributed in the hope that it will be useful, but     |
+ | WITHOUT ANY WARRANTY; without even the implied warranty of         |
+ | MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.               |
+ | See the GNU Affero General Public License for more details.        |
+ |                                                                    |
+ | You should have received a copy of the GNU Affero General Public   |
+ | License and the CiviCRM Licensing Exception along                  |
+ | with this program; if not, contact CiviCRM LLC                     |
+ | at info[AT]civicrm[DOT]org. If you have questions about the        |
+ | GNU Affero General Public License or the licensing of CiviCRM,     |
+ | see the CiviCRM license FAQ at http://civicrm.org/licensing        |
+ +--------------------------------------------------------------------+
+*/
+
+/**
+ *
+ * @package CRM
+ * @copyright CiviCRM LLC (c) 2004-2010
+ * $Id$
+ *
+ */
+
+
+// Include the Direct Debit Settings file
+require_once 'direct_debit_settings.php';
+
+function civicrm_direct_debit_civicrm_config( &$config ) {
+    $template =& CRM_Core_Smarty::singleton( );
+    
+    $ddRoot = dirname( __FILE__ );
+    
+    $ddDir = $ddRoot . DIRECTORY_SEPARATOR . 'templates';
+    
+    if ( is_array( $template->template_dir ) ) {
+        array_unshift( $template->template_dir, $ddDir );
+    } else {
+        $template->template_dir = array( $ddDir, $template->template_dir );
+    }
+    
+    // also fix php include path
+    $include_path = $ddRoot . PATH_SEPARATOR . get_include_path( );
+    set_include_path( $include_path );
+}
+
+/**
+ * Implementation of hook_perm
+ */
+function civicrm_direct_debit_perm() {
+  return array('access direct debit site-wide', 'administer direct debit site-wide');
+}
+
+function civicrm_direct_debit_civicrm_xmlMenu( &$files ) {
+    $files[] = dirname(__FILE__)."/DirectDebit/xml/Menu/DirectDebit.xml";
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function civicrm_direct_debit_menu() {
+  $items['admin/settings/civicrm_direct_debit'] = array(
+    'title' => 'DD Letter Template',
+    'description' => 'Direct Debit Letter Template',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('civicrm_direct_debit_admin_settings'),
+    'access arguments' => array('administer site configuration'),
+    'type' => MENU_NORMAL_ITEM,
+    'file' => 'civicrm_direct_debit.admin.inc',
+  );
+  return $items;
+}
+
+/**
+ * Implementation of Naivagation menu hook, to add menu item - Direct Debit
+ */
+function civicrm_direct_debit_civicrm_navigationMenu( &$params ) {
+
+    $config =& CRM_Core_Config::singleton( );
+	  //  Get the maximum key of $params
+    $maxKey = ( max( array_keys($params) ) );
+    
+    $params[$maxKey+1] = array (
+								'attributes' => array (
+                                              'label'      => 'Direct Debit',
+                                              'name'       => 'Direct Debit',
+                                              'url'        => null,
+                                              'permission' => 'access CiviContribute',
+                                              'operator'   => null,
+                                              'separator'  => null,
+                                              'parentID'   => null,
+                                              'navID'      => $maxKey+1,
+                                              'active'     => 1
+                                              ),
+                                              
+								'child' =>  array (
+                                              '1' => array (
+                                                            'attributes' => array (
+                                                                                   'label'      => 'Create Authorisation File',
+                                                                                   'name'       => 'Create Authorisation File',
+                                                                                   'url'        => 'civicrm/contribute&action=create_authorisation_file&reset=1',
+                                                                                   'permission' => 'access direct debit site-wide',
+                                                                                   'operator'   => null,
+                                                                                   'separator'  => 0,
+                                                                                   'parentID'   => $maxKey+1,
+                                                                                   'navID'      => 1,
+                                                                                   'active'     => 1
+                                                                                    ),
+                                                        'child' => null
+                                                            ),
+												                      '2' => array (
+                                                            'attributes' => array (
+                                                                                   'label'      => 'Process DD',
+                                                                                   'name'       => 'Process DD',
+                                                                                   'url'        => 'civicrm/directdebit/process&action=step1&reset=1',
+                                                                                   'permission' => 'access direct debit site-wide',
+                                                                                   'operator'   => null,
+                                                                                   'separator'  => 0,
+                                                                                   'parentID'   => $maxKey+1,
+                                                                                   'navID'      => 2,
+                                                                                   'active'     => 1
+                                                                                    ),
+                                                        'child' => null
+                                                            ),
+                                              '3' =>  array (
+                                                            'attributes' => array (
+                                                                                   'label'      => 'DD - Letter Template',
+                                                                                   'name'       => 'DD - Letter Template',
+                                                                                   'url'        => 'admin/settings/civicrm_direct_debit',
+                                                                                   'permission' => 'access direct debit site-wide',
+                                                                                   'operator'   => null,
+                                                                                   'separator'  => 0,
+                                                                                   'parentID'   => $maxKey+1,
+                                                                                   'navID'      => 3,
+                                                                                   'active'     => 1
+                                                                                    ),
+                                                            'child' => null
+                                                            ) ,
+                                               '4' =>  array (             
+                                                            'attributes' => array (
+                                                                                   'label'      => 'DD - Batch Report',
+                                                                                   'name'       => 'DD - Batch Report',
+                                                                                   'url'        => CIVICRM_DIRECT_DEBIT_BATCH_REPORT_URL ,
+                                                                                   'permission' => 'access direct debit site-wide',
+                                                                                   'operator'   => null,
+                                                                                   'separator'  => 1,
+                                                                                   'parentID'   => $maxKey+1,
+                                                                                   'navID'      => 4,
+                                                                                   'active'     => 1
+                                                                                    ),
+                                                            'child' => null
+                                                            ) ,
+                                                            
+                                                 '5' =>  array (             
+                                                            'attributes' => array (
+                                                                                   'label'      => 'Membership Renewal - Cron',
+                                                                                   'name'       => 'Membership Renewal - Cron',
+                                                                                   'url'        => $config->userFrameworkBaseURL.'sites/all/modules/civicrm/bin/MembershipAutoRenewal.php' ,
+                                                                                   'permission' => 'administer direct debit site-wide',
+                                                                                   'operator'   => null,
+                                                                                   'separator'  => 0,
+                                                                                   'parentID'   => $maxKey+1,
+                                                                                   'navID'      => 5,
+                                                                                   'active'     => 1
+                                                                                    ),
+                                                            'child' => null
+                                                            )  ,
+                                                            
+                                                   '6' =>  array (             
+                                                            'attributes' => array (
+                                                                                   'label'      => 'Recurring Donations - Cron',
+                                                                                   'name'       => 'Membership Renewal - Cron',
+                                                                                   'url'        => $config->userFrameworkBaseURL.'sites/all/modules/civicrm/bin/ProcessRecurringContributions.php' ,
+                                                                                   'permission' => 'administer direct debit site-wide',
+                                                                                   'operator'   => null,
+                                                                                   'separator'  => 0,
+                                                                                   'parentID'   => $maxKey+1,
+                                                                                   'navID'      => 6,
+                                                                                   'active'     => 1
+                                                                                    ),
+                                                            'child' => null
+                                                        )          
+                                                            
+                                                                   
+                                            )
+								);
+								
+}
+
+/**
+ * Implementation of hook_civicrm_validate
+ * Validate bank account number and sort code for online DD signup
+ */
+function civicrm_direct_debit_civicrm_validate( $formName, &$fields, &$files, &$form ) {
+    $errors = array( );
+    
+    if($formName == 'CRM_Contribute_Form_Contribution_Main') {
+       if (array_key_exists ( 'sort_code_part_1' , $fields ) && array_key_exists ( 'sort_code_part_2' , $fields ) && array_key_exists ( 'sort_code_part_3' , $fields ) && array_key_exists ( 'account_number' , $fields )) {
+            if($fields['sort_code_part_1'] == "" && $fields['sort_code_part_2'] == "" && $fields['sort_code_part_3'] == "") { 
+                $errors['sort_code_part_1'] = 'Sort Code is a required field.';
+                $form->assign('SortCodeError' , 'Sort Code is a required field.');
+                $form->assign('SortCodeErrorClass' , "class='form-text two required error'");
+                
+            }
+            else if($fields['sort_code_part_1'] == "" || $fields['sort_code_part_2'] == "" || $fields['sort_code_part_3'] == "") { 
+                $errors['sort_code_part_1'] = 'Invalid Sort Code.';
+                $form->assign('SortCodeError' , 'Invalid Sort Code.');
+                $form->assign('SortCodeErrorClass' , "class='form-text two required error'");
+            }
+            else {
+                 if(!is_numeric($fields['sort_code_part_1']) || !is_numeric($fields['sort_code_part_2']) || !is_numeric($fields['sort_code_part_3']) ) {
+                    $errors['sort_code_part_1'] = 'Invalid Sort Code.';
+                    $form->assign('SortCodeError' , 'Invalid Sort Code.');
+                    $form->assign('SortCodeErrorClass' , "class='form-text two required error'");
+                 } 
+            }
+            
+            if(!is_numeric($fields['account_number'])) {
+                $errors['account_number'] = 'Invalid Account Number.';
+            }
+        }    
+    }
+    return empty( $errors ) ? true : $errors;
+}
+
+/**
+ * Implementation of hook_civicrm_buildForm
+ * To display the mandate ids dropdown list for offline contributions
+ */
+function civicrm_direct_debit_civicrm_buildForm( $formName, &$form ){
+    
+  /*require_once 'DirectDebit/Utils/Contribution.php';
+  switch($formName) {
+    case 'CRM_Member_Form_Membership':
+    case 'CRM_Contribute_Form_Contribution':
+    case 'CRM_Member_Form_MembershipRenewal':
+      DirectDebit_Utils_Contribution::buildForm(&$form);
+    default:
+      break;
+  }*/ 
+
+  // Display the drop down of mandate ids related with this contact when add/edit contribution
+  if ($formName == 'CRM_Member_Form_Membership' || $formName == 'CRM_Contribute_Form_Contribution' || $formName == 'CRM_Member_Form_MembershipRenewal') {
+      $cid = CRM_Utils_Array::value('cid', $_GET, '');
+      
+      $mandatIdArray = array();
+      // Compose the mandate id array when add/edit contribution
+      $mandatIdArray = array(''=>'--select--');
+      $mandatIdArray['new'] = 'New Mandate';
+      $sql = "SELECT * FROM civicrm_value_bank_details WHERE entity_id = '$cid' AND suspend_date IS NULL AND cease_date IS NULL";
+      //AND authorization_date IS NOT NULL AND authorization_file IS NOT NULL 
+      $dao = CRM_Core_DAO::executeQuery( $sql );
+      while($dao->fetch()) {
+          $mandatIdArray[$dao->id] = $dao->id." (".$dao->bank_name." - ".$dao->account_number.")";  
+      }
+      //$form->add( 'text', 'mandate_id', ts('Mandate ID'), array( 'maxlength' => 10 ) , false );
+      $form->add( 'select', 'mandate_id', ts('Mandate ID'), $mandatIdArray , false );
+      $form->assign('dd_payment_instrument', CIVICRM_DIRECT_DEBIT_PAYMENT_INSTRUMENT_ID );
+      
+      $form->assign('showMandateDropdown', 1 );
+      
+      // Default to the mandate id, only in contribution edit mode
+      $action = CRM_Utils_Array::value('action', $_GET, '');
+      if($action == 'update') {
+          $contribution_id = CRM_Utils_Array::value('id', $_GET, '');
+          if (!empty($contribution_id)) {
+              $default_sql = "SELECT * FROM civicrm_value_direct_debit_details where entity_id = '$contribution_id'";
+              $default_dao = CRM_Core_DAO::executeQuery( $default_sql );
+              $default_dao->fetch();
+              //if(!empty($default_dao->added_to_direct_debit)) {
+                  $defaults = array('mandate_id' => $default_dao->mandate_id);
+                  //print_r ($defaults);exit;
+                  //$form->setDefaults( $defaults );
+                  //$form->add( 'select', 'mandate_id', ts('Mandate ID'), $mandatIdArray , false ,  array('disabled' => true) );
+                  //$form->add( 'select', 'mandate_id', ts('Mandate ID'), $mandatIdArray , false );
+                  //$form->assign('makeMandateDropdownReadOnly', 1 );
+              //} 
+              /*else {
+                  $form->add( 'select', 'mandate_id', ts('Mandate ID'), $mandatIdArray , false );
+              }*/
+              $form->add( 'select', 'mandate_id', ts('Mandate ID'), $mandatIdArray , false );
+              $form->setDefaults( $defaults );     
+          }    
+      }
+       
+      if (count($mandatIdArray) == 0) {
+          $DDMandategroupId = _civicrm_direct_debit_getCustomGroupID('Direct_Debit_Mandate');
+          $form->assign('no_mandate_for_contact' , 1 );
+          $form->assign('cid' , $cid );
+          $form->assign('groupId' , $DDMandategroupId );
+      }
+      
+      $form->add( 'text', 'bank_name', ts('Bank/Building Society'), array( 'maxlength' => 30 , 'size' => 40 ) , true );
+      //$form->add( 'text', 'bank_address', ts('Bank/Building Society number and street'), array( 'maxlength' => 30 , 'size' => 40 ) , true );
+      //$form->add( 'text', 'bank_city', ts('Town/City'), array( 'maxlength' => 15  , 'size' => 30 ) , true );
+      //$form->add( 'text', 'bank_county', ts('County'), array( 'maxlength' => 15  , 'size' => 30 ) , false );
+      //$form->add( 'text', 'bank_postcode', ts('Postcode'), array( 'maxlength' => 8  , 'size' => 30) , true );
+      $form->add( 'text', 'account_name', ts('Name(s) of account holder(s)'), array( 'maxlength' => 30 , 'size' => 40) , true );
+      $form->add( 'text', 'account_number', ts('Bank/Building Society account number'), array( 'maxlength' => 8 , 'size'=> 8 ) , true );
+      $form->add( 'text', 'sort_code', ts('Sort Code'), array( 'maxlength' => 6 , 'size'=> 6 ) , true );
+           
+  }
+  
+  // Display the Direct Debit Online Signup Form in Contribution Page
+  // if CIVICRM_DIRECT_DEBIT_DISPLAY_ONLINE_BLOCK is set to 1 
+  if ($formName == 'CRM_Contribute_Form_Contribution_Main') {
+      
+      //$entity_id = CRM_Utils_Array::value('id', $_POST, '');exit;
+      $entity_id = $form->_id;
+      $entity_type= 'civicrm_contribution';
+      
+      $sql = "SELECT * FROM civicrm_value_direct_debit_display_settings WHERE entity_id = '$entity_id' AND entity_type = '$entity_type'"; 
+      $dao = CRM_Core_DAO::executeQuery( $sql );
+      $dao->fetch();
+        
+      //if (CIVICRM_DIRECT_DEBIT_DISPLAY_ONLINE_BLOCK == 1) {
+      if ($dao->display_dd_block == 1) {
+          $form->assign('EnableDDSection' , true);
+          
+          if($form->_values['is_recur']) {
+            require_once 'CRM/Contribute/Form/Contribution/Main.php';
+            CRM_Contribute_Form_Contribution_Main::buildRecur( $form );
+            $form->add('hidden' , 'skip_payment_processor_check' , 1 );
+          }
+          $config =& CRM_Core_Config::singleton( );
+          $form->assign('userFrameworkBaseURL' ,$config->userFrameworkBaseURL);
+          
+          $form->add( 'text', 'bank_name', ts('Bank/Building Society'), array( 'maxlength' => 30 , 'size' => 40 ) , true );
+          $form->add( 'text', 'bank_address', ts('Bank/Building Society number and street'), array( 'maxlength' => 30 , 'size' => 40 ) , true );
+          $form->add( 'text', 'bank_city', ts('Town/City'), array( 'maxlength' => 15  , 'size' => 30 ) , true );
+          $form->add( 'text', 'bank_county', ts('County'), array( 'maxlength' => 15  , 'size' => 30 ) , false );
+          $form->add( 'text', 'bank_postcode', ts('Postcode'), array( 'maxlength' => 8  , 'size' => 30) , true );
+          $form->add( 'text', 'account_number', ts('Bank/Building Society account number'), array( 'maxlength' => 8 , 'size'=> 8 ) , true );
+          $form->add( 'text', 'sort_code_part_1', ts(''), array( 'maxlength' => 6 , 'size' => 2 ) , false );
+          $form->add( 'text', 'sort_code_part_2', ts(''), array( 'maxlength' => 6 , 'size' => 2 ) , false );
+          $form->add( 'text', 'sort_code_part_3', ts(''), array( 'maxlength' => 6 , 'size' => 2 ) , false );
+          $form->add( 'text', 'account_name', ts('Name(s) of account holder(s)'), array( 'maxlength' => 30 , 'size' => 40) , true );
+          //$form->addDate( 'dd_start_date', ts('Start Date'), false , array( 'formatType' => 'activityDate' ) );
+          $collectionDayArray = $_ENV['collectionDayArray'];
+          $form->add( 'select', 'collection_day', ts( 'Date of payment Collection' ), $collectionDayArray , false );
+      }
+  }
+  
+  
+  // Set whether the DD block has to be displayed for the contribution page
+  if ($formName == "CRM_Contribute_Form_ContributionPage_Amount") {
+      $entity_id = $form->getVar( '_id' );  
+      //$entity_id = CRM_Utils_Array::value('id', $_REQUEST, '');
+      $entity_type = 'civicrm_contribution';
+      
+      if (!empty($entity_id)) {
+          $sql = "SELECT * FROM civicrm_value_direct_debit_display_settings WHERE entity_id = %1"; 
+          $dao = CRM_Core_DAO::executeQuery( $sql , array( '1' => array($entity_id ,  'Int') ) );
+          if ($dao->fetch()) {
+              $account_table_id = $dao->id; 
+              $display_dd_block = $dao->display_dd_block;
+          }    
+              
+          $form->addElement('hidden', 'entity_id', $entity_id );
+          $form->addElement('hidden', 'entity_type', $entity_type );
+          $form->addElement('hidden', 'account_table_id', $account_table_id );
+          $form->assign('display_dd_block_value', $display_dd_block );
+          $form->assign('display_dd_is_recur', $form->_defaultValues['is_recur'] );
+          $defaults = array(
+                              'display_dd_block'=>$dao->display_dd_block ,
+                             );   
+          
+          $form->addElement('checkbox', 'display_dd_block', ts('Display direct debit block?'), null, array( 'onclick' => "showRecurringforDirectDebit( );" ) );
+          $form->setDefaults( $defaults );
+          
+      }
+  }
+}
+
+/**
+ * Implementation of hook_civicrm_postProcess
+ * Setting the posted bank details in session
+ * *****Need Rework*****  
+ */
+function civicrm_direct_debit_civicrm_postProcess( $formName, &$form ){
+
+    require_once 'CRM/Core/Session.php';
+    $session = CRM_Core_Session::singleton();
+
+    // FIX-ME : Not sure how to pass the posted bank details from confirmation page to hook_civicrm_post
+    // So setting the values in session
+    // Possible security issue ??? 
+	if($formName == 'CRM_Contribute_Form_Contribution_Main') {
+        $session->set('bank_name' , $form->_submitValues['bank_name']);
+        $session->set('bank_address' , $form->_submitValues['bank_address']);
+        $session->set('bank_city' , $form->_submitValues['bank_city']);
+        $session->set('bank_county' , $form->_submitValues['bank_county']);
+        $session->set('bank_postcode' , $form->_submitValues['bank_postcode']);
+        $session->set('account_number' , $form->_submitValues['account_number']);
+        $session->set('sort_code' , $form->_submitValues['sort_code_part_1']." ".$form->_submitValues['sort_code_part_2']." ".$form->_submitValues['sort_code_part_3'] );
+        $session->set('account_name' , $form->_submitValues['account_name']);
+        $session->set('collection_day' , $form->_submitValues['collection_day']);
+    }
+    
+    if ($formName == 'CRM_Contribute_Form_ContributionPage_Amount') {
+        $entity_id = $form->_submitValues['entity_id'];
+        $entity_type = $form->_submitValues['entity_type'];
+        $account_table_id = $form->_submitValues['account_table_id'];
+        
+        $display_dd_block = addslashes($form->_submitValues['display_dd_block']);
+        
+        if (!empty($entity_id)) {
+          $sql = "REPLACE INTO civicrm_value_direct_debit_display_settings SET 
+                  id = '$account_table_id' , entity_id = '$entity_id' , entity_type = '$entity_type', display_dd_block = '$display_dd_block'";
+          $dao = CRM_Core_DAO::executeQuery( $sql );
+        }                    
+    }
+    
+}
+
+/**
+ * Implementation of hook_civicrm_custom
+ * To save the Primary Key(id) of the custom table (Mandate Table) in another field, so that administrator can view the mandate id 
+ * Because mandate id is needed by admin to set up a offline membership, which is paid by Direct Debit 
+ */
+function civicrm_direct_debit_civicrm_custom( $op, $groupID, $entityID, &$params ) {
+    $DDMandategroupId = _civicrm_direct_debit_getCustomGroupID('Direct_Debit_Mandate');
+    if ($groupID == $DDMandategroupId && ($op == 'create' || $op == 'edit')) {
+         while(list($k , $v) = @each($params)) {
+            if($v['column_name'] == 'bank_name') $bank_name = $v['value']; 
+            if($v['column_name'] == 'account_number') $account_number = $v['value'];
+            if($v['column_name'] == 'sort_code') $sort_code = $v['value'];
+         }
+         
+         $sql = "SELECT * FROM civicrm_value_bank_details WHERE entity_id = '$entityID' AND bank_name = '$bank_name' AND sort_code = '$sort_code' AND account_number = '$account_number'"; 
+         $dao = CRM_Core_DAO::executeQuery( $sql );
+         $dao->fetch();
+         
+         $query = "UPDATE civicrm_value_bank_details SET mandate_id = '".$dao->id."' WHERE id = '".$dao->id."'"; 
+         $dao = CRM_Core_DAO::executeQuery( $query ); 
+    }
+}
+
+/**
+ * Implementation of hook_civicrm_post
+ * To save the bank details submitted by user to the custom table 
+ */
+function civicrm_direct_debit_civicrm_post( $op, $objectName, $objectId, &$objectRef ) {
+    
+    // Set the custom data - 'Paid by Direct Debit'(which is against membership) to Yes  
+    if ($op == 'create' && $objectName == 'Membership') {
+        require_once 'CRM/Core/Session.php';
+        $session = CRM_Core_Session::singleton();
+        $membership_paid_by_dd = $session->get('membership_paid_by_dd');
+        if ($membership_paid_by_dd == 1) {
+            $mandate_id = $session->get('mandate_id');
+            $sql = "INSERT INTO civicrm_value_payment_method SET direct_debit = '1', entity_id = '$objectId'";
+            $dao = CRM_Core_DAO::executeQuery( $sql );    
+        }
+    }          
+    
+    // Save the bank details submitted by users to the custom table
+    // FIX-ME : If the user signup for another type membership, with same bank details
+    // In that case, we should not create a new record, but instead get the mandate id and use it for the member dues       
+    if ($op == 'create' && $objectName == 'Contribution') {
+        require_once 'CRM/Core/Session.php';
+        $session = CRM_Core_Session::singleton();
+        
+        $contact_id = $objectRef->contact_id; 
+        
+        $bank_name = $session->get('bank_name');
+        $bank_address = $session->get('bank_address');
+        $bank_city = $session->get('bank_city');
+        $bank_county = $session->get('bank_county');
+        $bank_postcode = $session->get('bank_postcode');
+        $account_number = $session->get('account_number');
+        $sort_code = $session->get('sort_code');
+        $account_name = $session->get('account_name');
+        $collection_day = $session->get('collection_day');
+        if ($collection_day == 0) $collection_day = CIVICRM_DIRECT_DEBIT_DEFAULT_COLLECTION_DAY;
+        
+        $temp_date = strtotime($dd_start_date); 
+        $start_date = date('YmdHis', $temp_date);
+        
+        if( (!empty($bank_name) || !empty($account_number) || !empty($sort_code) || !empty($account_name)) && !empty($objectRef->contribution_page_id) ) {
+            $bacs_ref_number = $contact_id;       
+            if ( strlen($bacs_ref_number) < 6 )   $bacs_ref_number = sprintf("%06d" , $bacs_ref_number);
+            
+            $sql = "INSERT INTO civicrm_value_bank_details SET bank_name = '$bank_name', bank_address = '$bank_address',
+                         bank_city = '$bank_city', bank_county = '$bank_county', bank_postcode = '$bank_postcode',
+                         account_number = '$account_number' , sort_code = '$sort_code' , account_name = '$account_name' , 
+                         entity_id = '$contact_id' , collection_day = '$collection_day' , bacs_ref_number = '".$bacs_ref_number."'";
+            // Make the mandate default, if used to pay member dues            
+            if ($objectRef->contribution_type_id == 2) $sql .= ", is_default = '1'";
+            $dao = CRM_Core_DAO::singleValueQuery( $sql );
+            
+            // Get the Id after Insert 
+            $mandate_id = mysql_insert_id();
+            
+            $sql = "UPDATE civicrm_value_bank_details SET mandate_id = '$mandate_id' WHERE id = '$mandate_id'"; 
+            $dao = CRM_Core_DAO::executeQuery( $sql );
+            
+            $sql = "UPDATE civicrm_contribution SET payment_instrument_id = '".CIVICRM_DIRECT_DEBIT_PAYMENT_INSTRUMENT_ID."' WHERE id = '$objectId'";
+            $dao = CRM_Core_DAO::executeQuery( $sql );
+            
+            if (! empty($objectRef->contribution_recur_id)) {
+            
+                $select_sql = "SELECT * FROM civicrm_contribution_recur ccr WHERE id = '".$objectRef->contribution_recur_id."'";
+                $select_dao = CRM_Core_DAO::executeQuery( $select_sql );
+                $select_dao->fetch();
+                
+                $temp_date = strtotime($select_dao->start_date);
+                $next_collectionDate = strtotime ( "+$select_dao->frequency_interval $select_dao->frequency_unit" , $temp_date ) ;
+                $next_collectionDate = date ( 'YmdHis' , $next_collectionDate );
+              
+                $sql = "UPDATE civicrm_contribution_recur SET processor_id = '".$mandate_id."' , next_sched_contribution = '".$next_collectionDate."' WHERE id = '".$objectRef->contribution_recur_id."'";
+                $dao = CRM_Core_DAO::executeQuery( $sql );    
+            }
+            if ($objectRef->contribution_type_id = 2) {
+                $session->set('membership_paid_by_dd' , 1);
+                //$session->set('mandate_id' , $mandate_id);
+            }
+            
+            
+        } else {
+            // FIX ME : Getting the mandate Id from $_POST  
+            // During record payment when creating new membership or editing contribution
+            if ($_POST['payment_instrument_id'] == 6 && !empty($_POST['mandate_id'])) {
+                if ($_POST['mandate_id'] == 'new') {
+                    $sql = "INSERT INTO civicrm_value_bank_details SET bank_name = '$bank_name' ,  
+                         account_number = '$account_number' , sort_code = '$sort_code' , account_name = '$account_name' , 
+                         entity_id = '$contact_id' , collection_day = '$collection_day' , bacs_ref_number = '".$bacs_ref_number."'";
+                    // Make the mandate default, if used to pay member dues            
+                    if ($objectRef->contribution_type_id == 2) $sql .= ", is_default = '1'";
+                    $dao = CRM_Core_DAO::singleValueQuery( $sql );
+                    // Get the Id after Insert 
+                    $mandate_id = mysql_insert_id();   
+                } else {
+                    $mandate_id = $_POST['mandate_id'];
+                }
+            }        
+        }
+        
+        if(!empty($mandate_id)) {
+            // Create appropriate DD activity depending on the status of the mandate. Activity created can be one of the follwoing
+            // New DD Signup , Awaiting Signed declaration , Authorisation Required , First Payment , Standart Payment
+            civicrm_direct_debit_civicrm_post_create_DD_Mandate_Activity( $mandate_id , $objectId , $objectRef , $contact_id , 0 );
+        }        
+    }
+  
+    // When the contribution is edited and payment instrument is set to direct debit    
+    if ($op == 'edit' && $objectName == 'Contribution') {
+        $contact_id = $objectRef->contact_id;
+        // FIX ME : Getting the mandate Id from $_POST  
+        // During record payment when creating new membership or editing contribution
+        if ($_POST['payment_instrument_id'] == 6 && !empty($_POST['mandate_id'])) {                
+            $mandate_id = $_POST['mandate_id'];
+        }
+        
+        if(!empty($mandate_id)) {
+            $sql = "SELECT * FROM civicrm_value_direct_debit_details WHERE entity_id = '$objectId'";
+            $dao = CRM_Core_DAO::executeQuery( $sql );
+            // Create appropriate DD activity depending on the status of the mandate. Activity created can be one of the following
+            // New DD Signup , Awaiting Signed declaration , Authorisation Required , First Payment , Standart Payment
+            if($dao->fetch()) {
+                if ($mandate_id != $dao->mandate_id) {
+                    // Mandate Id updated for the contribution
+                    // So delete the related activity for the old mandate id and create new activity for new mandate id selected
+                    // Delete the mandate id stored as custom data against activity ???  
+                    $activity_custom_sql      = "DELETE FROM civicrm_value_activity_bank_relationship WHERE entity_id = '".$dao->activity_id."'";
+                    CRM_Core_DAO::executeQuery( $activity_custom_sql );
+                    
+                    // Change the status of the activity to cancelled
+                    $activity_sql             = "UPDATE civicrm_activity SET status_id = '3' WHERE id = '".$dao->activity_id."'";
+                    CRM_Core_DAO::executeQuery( $activity_sql );
+                    
+                    // Delete the mandate id and activity id stored as custom data against contribution
+                    //$contribution_custom_sql  = "DELETE FROM civicrm_value_direct_debit_details WHERE id = '".$dao->id."'";
+                    //CRM_Core_DAO::executeQuery( $contribution_custom_sql );
+                     
+                    civicrm_direct_debit_civicrm_post_create_DD_Mandate_Activity( $mandate_id , $objectId , $objectRef , $contact_id , $dao->process_as_rejection );
+                }
+                //civicrm_direct_debit_civicrm_post_create_DD_Mandate_Activity( $mandate_id , $objectId , &$objectRef , $contact_id );
+            }
+            else {
+                civicrm_direct_debit_civicrm_post_create_DD_Mandate_Activity( $mandate_id , $objectId , $objectRef , $contact_id , 0 );
+            }
+        }        
+    }
+    
+    // Create 'Authorisation Required' Activity , if 'Awaiting Signed Declaration' Activity is completed
+    if ($op == 'edit' && $objectName == 'Activity') {
+        $activity_id = $objectId;
+        $activity_type_id = $objectRef->activity_type_id;
+        
+        $sql = "SELECT * FROM civicrm_activity_target WHERE activity_id = '$activity_id'";
+        $dao = CRM_Core_DAO::executeQuery( $sql );
+        $dao->fetch();
+        
+        $contribution_sql = "SELECT * FROM civicrm_value_direct_debit_details WHERE activity_id = '$activity_id'";
+        $contribution_dao = CRM_Core_DAO::executeQuery( $contribution_sql );
+        $contribution_dao->fetch();
+        $contribution_id = $contribution_dao->entity_id;
+       
+        require_once 'CRM/Contribute/DAO/Contribution.php';
+        $cTypedao =& new CRM_Contribute_DAO_Contribution();
+        $cTypedao->id = $contribution_id;
+        $cTypedao->find(true);
+
+        if ($objectRef->activity_type_id == CIVICRM_DIRECT_DEBIT_AWAITING_SIGNED_DECLARARION_ACTIVITY_ID && $objectRef->status_id == 2) {
+            
+            //$subject = $objectRef->subject;
+            //$subjectArray = @explode('-' , $subject);
+            //$mandate_id = $subjectArray[1];
+            $sql = "SELECT * FROM civicrm_value_activity_bank_relationship WHERE entity_id = '$activity_id'";
+            $dao = CRM_Core_DAO::executeQuery( $sql );
+            $dao->fetch();
+            $mandate_id = $dao->bank_id;
+            
+            $activity_label = civicrm_direct_debit_civicrm_post_get_activity_subject(CIVICRM_DIRECT_DEBIT_AUTHORISAION_REQUIRED_ACTIVITY_ID , $cTypedao->contribution_type_id);                    
+            //$subject = $activity_label.", Mandate Id - ".$mandate_id;
+            $subject = "Mandate Id - ".$mandate_id;
+            $activity_id = civicrm_direct_debit_civicrm_post_createActivity (CIVICRM_DIRECT_DEBIT_AUTHORISAION_REQUIRED_ACTIVITY_ID , $objectRef->source_contact_id , $dao->target_contact_id , $subject , 1  , null , $mandate_id);
+            
+            $sql = "UPDATE civicrm_value_direct_debit_details SET activity_id = '$activity_id' WHERE entity_id = '$contribution_id'";
+            $dao = CRM_Core_DAO::executeQuery( $sql );
+        }    
+    }    
+}
+
+
+/**
+ * Function to DD mandate activity, depending on the status of the mande
+ * Just pass the mandate id and related contribution id and object , the function will check for the status of the mandate and create appropriate activity 
+ */
+function civicrm_direct_debit_civicrm_post_create_DD_Mandate_Activity( $mandate_id , $objectId , &$objectRef , $contact_id , $process_as_rejection = null ) {
+
+    //$sql = "INSERT INTO civicrm_value_direct_debit_details SET mandate_id = '$mandate_id', entity_id = '$objectId'";
+    //$dao = CRM_Core_DAO::executeQuery( $sql );
+         
+    // Check whether the Activity 'New Direct Debit' signup has been created for the mandate
+    // If not , Create  'New DD Signup' Activity for the mandate            
+    $newdd_sql = "SELECT ca.id as activity_id , cb.bank_id as mandate_id , ca.activity_type_id as activity_type_id 
+                          FROM civicrm_value_activity_bank_relationship cb 
+                          LEFT JOIN civicrm_activity ca ON ca.id = cb.entity_id
+                          WHERE cb.bank_id = '$mandate_id' AND ca.status_id = '2' AND ca.activity_type_id = '".CIVICRM_DIRECT_DEBIT_NEW_DIRECT_DEBIT_SIGNUP_ACTIVITY_ID."' 
+                          ORDER BY ca.activity_type_id DESC";
+    $newdd_dao = CRM_Core_DAO::executeQuery( $newdd_sql );
+    
+    if(!$newdd_dao->fetch()) {
+        // Create Activity - New DD Signup            
+        $activity_label = civicrm_direct_debit_civicrm_post_get_activity_subject(CIVICRM_DIRECT_DEBIT_NEW_DIRECT_DEBIT_SIGNUP_ACTIVITY_ID , $objectRef->contribution_type_id);
+        
+        //$subject = $activity_label.", Mandate Id - ".$mandate_id;
+        $subject = "Mandate Id - ".$mandate_id;
+         
+        civicrm_direct_debit_civicrm_post_createActivity (CIVICRM_DIRECT_DEBIT_NEW_DIRECT_DEBIT_SIGNUP_ACTIVITY_ID , $contact_id , $contact_id , $subject , 2 , null , $mandate_id);
+    }                
+    
+    $activity_date = date("Y-m-d");
+    $temp_date = strtotime($activity_date);
+    
+    // Check whether the Authorisation is done for the mandate
+    // If not, Create 'Awaiting Signed Declaration' Activity if paper-based DD
+    // or Create 'Authorisation Required' Activity if paperless DD
+    $mandate_sql = "SELECT * FROM civicrm_value_bank_details WHERE id = '$mandate_id' AND authorization_date IS NOT NULL AND authorization_file IS NOT NULL";
+    $mandate_dao = CRM_Core_DAO::executeQuery( $mandate_sql );
+    
+    if(!$mandate_dao->fetch()) {
+        // Mandate Not Authorised yet
+        if (CIVICRM_DIRECT_DEBIT_IS_PAPERLESS != 1) {
+            $activity_type_id = CIVICRM_DIRECT_DEBIT_AWAITING_SIGNED_DECLARARION_ACTIVITY_ID;
+        } else{
+            $activity_type_id = CIVICRM_DIRECT_DEBIT_AUTHORISAION_REQUIRED_ACTIVITY_ID;
+        }
+    } else {
+        // Mandate already authhotised
+        // Create 'Standard Payment' activity, if the mandate has been used for collection before
+        // Else create 'First payment' Activity
+        $activity_sql = "SELECT ca.id as activity_id , cb.bank_id as mandate_id , ca.activity_type_id as activity_type_id 
+                          FROM civicrm_value_activity_bank_relationship cb 
+                          LEFT JOIN civicrm_activity ca ON ca.id = cb.entity_id
+                          WHERE cb.bank_id = '$mandate_id' AND ca.status_id = '2' 
+                          ORDER BY ca.activity_type_id DESC";
+        $activity_dao = CRM_Core_DAO::executeQuery( $activity_sql );
+        $activity_dao->fetch();
+        
+        $activity_date = strtotime ( "+14 day" , $temp_date ) ;
+        $activity_date = date ( 'YmdHis' , $activity_date );
+        
+        if ($activity_dao->activity_type_id == CIVICRM_DIRECT_DEBIT_STANDARD_PAYMENT_ACTIVITY_ID)
+            $activity_type_id = $activity_dao->activity_type_id;
+        elseif ($activity_dao->activity_type_id == CIVICRM_DIRECT_DEBIT_FIRST_COLLECTION_ACTIVITY_ID)
+            $activity_type_id = CIVICRM_DIRECT_DEBIT_STANDARD_PAYMENT_ACTIVITY_ID;
+        else
+            $activity_type_id = CIVICRM_DIRECT_DEBIT_FIRST_COLLECTION_ACTIVITY_ID;
+    }
+    
+    $activity_label = civicrm_direct_debit_civicrm_post_get_activity_subject($activity_type_id , $objectRef->contribution_type_id);
+    //$subject = $activity_label.", Mandate Id - ".$mandate_id;
+    $subject = "Mandate Id - ".$mandate_id;
+    // Add the contribution type to the subject, if it is activity for first or standard payment
+    if ($activity_type_id == CIVICRM_DIRECT_DEBIT_FIRST_COLLECTION_ACTIVITY_ID OR $activity_type_id == CIVICRM_DIRECT_DEBIT_STANDARD_PAYMENT_ACTIVITY_ID) {
+        $subject = $activity_label.", ".$subject;
+    }      
+    $activity_id = civicrm_direct_debit_civicrm_post_createActivity ($activity_type_id , $contact_id , $contact_id , $subject , 1 , $activity_date , $mandate_id);            
+    
+    //$sql = "UPDATE civicrm_value_direct_debit_details SET activity_id = '$activity_id' , process_as_rejection = '$process_as_rejection' WHERE entity_id = '$objectId'";
+    $sql = "INSERT INTO civicrm_value_direct_debit_details SET activity_id = '$activity_id' , mandate_id = '$mandate_id' , entity_id = '$objectId'
+            ON DUPLICATE KEY UPDATE activity_id = '$activity_id' , mandate_id = '$mandate_id'";
+    $dao = CRM_Core_DAO::executeQuery( $sql );
+}
+
+/**
+ * Function to create activity
+ */
+function civicrm_direct_debit_civicrm_post_createActivity( $activity_type_id, $source_contact_id, $target_contact_id, $subject , $status_id , $activity_date = null , $mandate_id) {
+    
+    if ($activity_date == null)
+        $activity_date = date('YmdHis' , mktime(date("H"), date("i") , date("s") , date("m"), date("d") , date("Y")));
+
+    require_once 'api/v2/Activity.php';
+    $params = array(
+     'activity_type_id' => $activity_type_id,
+     'source_contact_id' => $source_contact_id,
+     'target_contact_id' => $target_contact_id,
+     'subject' => $subject,
+     'status_id' => $status_id,
+     'activity_date_time' => $activity_date 
+    );
+
+    $act = civicrm_activity_create($params);
+    
+    $activity_id = $act['id'];
+    
+    if (!empty($mandate_id) AND !empty($activity_id)) {      
+        $sql = "INSERT INTO civicrm_value_activity_bank_relationship SET entity_id = $activity_id , bank_id = $mandate_id";
+        $dao = CRM_Core_DAO::executeQuery( $sql );
+    }
+  
+    return $activity_id;
+    /*while($dao->fetch()) {
+        require_once 'CRM/Activity/DAO/ActivityAssignment.php';
+        $assignment = new CRM_Activity_DAO_ActivityAssignment( );
+        $assignment->activity_id = $activity_id;
+        $assignment->assignee_contact_id = $dao->contact_id;
+        //$assignment->with_contact_id = $relatedOrgID;
+        $assignment->save( );
+    }*/
+}
+
+/**
+ * Implementation of hook_civicrm_pageRun
+ * To Produce CSV files and authorisation files
+ */
+function civicrm_direct_debit_civicrm_pageRun( &$page ) {
+
+    $batch_ids = CRM_Utils_Request::retrieve( 'batch_ids', 'String', $this );
+    
+    $action = CRM_Utils_Array::value('action', $_GET, '');
+    
+    $name = $page->getVar( '_name' );
+    
+    // Get the DD Setup Letter template
+    require_once("CRM/Core/Config.php");
+    require_once("CRM/Core/BAO/CMSUser.php");
+    $config =& CRM_Core_Config::singleton( );
+    $db_uf = CRM_Core_BAO_CMSUser::dbHandle( $config );
+      $sql = "SELECT value FROM variable WHERE name='civicrm_direct_debit'";
+      $result = $db_uf->query( $sql );
+      $db_uf->disconnect( );
+    //$row = mysql_fetch_object($result);
+    $row = $result->fetchRow( DB_FETCHMODE_ASSOC );
+    $default_dd_template = unserialize($row['value']);
+    
+    require_once 'DirectDebit/Utils/DirectDebit.php';
+    require_once 'api/v2/Contribution.php';
+    require_once 'api/v2/Activity.php';
+    require_once 'api/v2/Contact.php';
+    
+    if ($name == 'CRM_Contribute_Page_Tab') {
+    
+        $cid = CRM_Utils_Array::value('cid', $_GET, '');
+        $query = "SELECT * FROM civicrm_contribution_recur WHERE contact_id = %1";
+        $dao = CRM_Core_DAO::executeQuery( $query , array( 1 => array( $cid   , 'String' ) ) );
+        $recurArray = array();
+        while ($dao->fetch ()) {
+            $recurArray[$dao->id]['id'] = $dao->id;
+            $recurArray[$dao->id]['amount'] = $dao->amount;
+            $recurArray[$dao->id]['frequency_unit'] = $dao->frequency_unit;
+            $recurArray[$dao->id]['frequency_interval'] = $dao->frequency_interval;
+            $recurArray[$dao->id]['start_date'] = $dao->start_date;
+            $recurArray[$dao->id]['next_sched_contribution'] = $dao->next_sched_contribution;
+        }
+        
+        //for contribution tabular View
+        $buildTabularView = CRM_Utils_Array::value( 'showtable', $_GET, false );
+        $page->assign( 'buildTabularView', $buildTabularView );
+        if( $buildTabularView ) return;
+        
+        $page->assign( 'isAdmin', $isAdmin );
+        $page->assign( 'recurArray', $recurArray );
+        $page->assign( 'recurArrayCount', count($recurArray) );
+        
+        
+        $DDDetailsGroupId = _civicrm_direct_debit_getCustomGroupID('Direct_Debit');
+        $DDDetailsActivityFieldId = _civicrm_direct_debit_getCustomFieldId($DDDetailsGroupId, 'Activity_Id');
+        $page->assign( 'DDDetailsGroupId', $DDDetailsGroupId );
+        $page->assign( 'DDDetailsActivityFieldId', $DDDetailsActivityFieldId );
+    }
+    
+    if ( $name == 'CRM_Contribute_Page_DashBoard' && $action == 'produce_csv_file' && !empty($batch_ids) ) {
+         $batch_array = @explode(',', $batch_ids);
+         unset($html);
+         
+         $csv_string = "";
+         //$csv_string .= "AUTOABSORBSTART\n";
+         //$csv_string .= "APPLICATION=DD\n";
+         
+         while( list ($k ,$v ) = each ($batch_array) ) {
+             $sql = "SELECT * FROM civicrm_entity_batch e WHERE e.batch_id = %1";         
+             $params  = array( 1 => array( $v   , 'Integer' ));
+             $dao = CRM_Core_DAO::executeQuery( $sql, $params );
+             while ( $dao->fetch( ) ) {
+                $html = "";
+                $contribution_id = $dao->entity_id;
+                
+                require_once 'CRM/Contribute/DAO/Contribution.php';
+                $contribution_dao =& new CRM_Contribute_DAO_Contribution( );
+                $contribution_dao->get($contribution_id);
+                
+                $custom_query = "SELECT * FROM civicrm_value_direct_debit_details WHERE entity_id = '$contribution_id'";
+                $custom_dao = CRM_Core_DAO::executeQuery($custom_query);
+                $custom_dao->fetch();
+                
+                $activity_sql = "SELECT * FROM civicrm_activity ca WHERE ca.id = %1";
+                $activity_params  = array( 
+                                    1 => array( $custom_dao->activity_id   , 'Integer' )
+                                    );
+                $activity_dao = CRM_Core_DAO::executeQuery( $activity_sql, $activity_params );
+                $activity_dao->fetch();
+                
+                // Get transcation code for the contribution, depending on the associated activity type
+                $transcation_code = civicrm_direct_debit_civicrm_pageRun_get_transcation_code( $activity_dao->activity_type_id ); 
+                
+                // Create the Colelction CSV file
+                $csv_string .= DirectDebit_Utils_DirectDebit::civicrm_direct_debit_civicrm_pageRun_produce_csv( $custom_dao->mandate_id , $contribution_dao->contact_id , true , $transcation_code , $contribution_dao->total_amount);
+                
+                //Update the contribution to completed
+                $params = array('id' => $contribution_id , 'contribution_status_id' => 1);
+                @civicrm_contribution_add($params);
+                
+                //Update the activity to completed
+                $activity_id = $custom_dao->activity_id;
+                $update_activity_sql = "UPDATE civicrm_activity SET status_id = '2' WHERE id = '$activity_id'";
+                $update_activity_dao = CRM_Core_DAO::executeQuery( $update_activity_sql );
+             }
+         }
+         //$csv_string .= "X";
+         
+         //$file_name = date('Y-m-d_H-i-s').".csv";
+         $file_name = date('Y-m-d_H-i-s').".txt";
+         $csv_path = $config->customFileUploadDir;
+         $filePathName   = "{$csv_path}/{$file_name}";
+      
+         $handle = fopen($filePathName, 'w');
+         file_put_contents($filePathName, $csv_string);
+         fclose($handle);
+         
+         header('Content-Type: plain/text');
+         header("Content-Disposition: attachment; filename=" . $file_name);
+         header("Pragma: public"); // required
+      	 header("Expires: 0");
+      	 header("Cache-Control: must-revalidate, post-check=0, pre-check=0");
+      	 header("Cache-Control: private",false); // required for certain browsers 
+      	 header("Content-Type: application/force-download");
+      	 header("Content-Transfer-Encoding: binary");
+         
+         echo $csv_string;
+          
+         CRM_Utils_System::civiExit( );
+           
+    }
+    
+    if ( $name == 'CRM_Contribute_Page_DashBoard' && $action == 'create_authorisation_file') {
+         
+         require_once("CRM/Core/Config.php");
+         $config =& CRM_Core_Config::singleton( );
+                   
+         $activity_sql = "SELECT * FROM civicrm_activity ca WHERE ca.activity_type_id = %1 AND ca.status_id = %2";
+         $activity_params  = array( 
+                                    1 => array( CIVICRM_DIRECT_DEBIT_AUTHORISAION_REQUIRED_ACTIVITY_ID   , 'Integer' ) ,
+                                    2 => array( 1   , 'Integer' )
+                                    );
+         $activity_dao = CRM_Core_DAO::executeQuery( $activity_sql, $activity_params );
+         $count = 0;
+         
+         $mandateArray = array();
+         $pdfletterArray = array();
+         $csv_string = "";
+         $html = "";
+                           
+         while($activity_dao->fetch()) {
+              
+            $activity_id = $activity_dao->id;
+           
+            $contribution_sql = "SELECT * FROM civicrm_value_direct_debit_details WHERE activity_id = '$activity_id'";
+            $contribution_dao = CRM_Core_DAO::executeQuery( $contribution_sql );
+            $contribution_dao->fetch();
+            $contribution_id = $contribution_dao->entity_id;
+            
+            require_once 'CRM/Contribute/DAO/Contribution.php';
+            $cTypedao =& new CRM_Contribute_DAO_Contribution();
+            $cTypedao->id = $contribution_id;
+            $cTypedao->find(true);
+            
+            $sql = "SELECT * FROM civicrm_value_activity_bank_relationship WHERE entity_id = '$activity_id'";
+            $dao = CRM_Core_DAO::executeQuery( $sql );
+            $dao->fetch();
+            $mandate_id = $dao->bank_id;
+            
+            $mandate_sql = "SELECT * FROM civicrm_value_bank_details bd WHERE bd.id = %1";
+            $mandate_params  = array( 1 => array( $mandate_id , 'Integer' ));
+            $mandate_dao = CRM_Core_DAO::executeQuery( $mandate_sql, $mandate_params );
+            $mandate_dao->fetch();
+            
+            if (!empty($mandate_dao->collection_day))
+                $collection_day = $mandate_dao->collection_day;
+            else 
+                $collection_day = CIVICRM_DIRECT_DEBIT_DEFAULT_COLLECTION_DAY;
+            
+			
+            $first_collectionDate = civicrm_direct_debit_civicrm_pageRun_get_valid_collection_date($collection_day , date("m") , 'F dS, Y' );
+            
+            // Get transcation code for the contribution, depending on the associated activity type  
+            $transcation_code = civicrm_direct_debit_civicrm_pageRun_get_transcation_code( $activity_dao->activity_type_id );
+            
+            // Create the Authorisation CSV file
+            $csv_string .= DirectDebit_Utils_DirectDebit::civicrm_direct_debit_civicrm_pageRun_produce_csv( $mandate_id , $activity_dao->source_contact_id , true , $transcation_code );
+            						            
+			$mandateArray[$mandate_id] = $activity_dao->source_contact_id;
+            
+            // Create the Setup letter
+            $pdfletterArray = DirectDebit_Utils_DirectDebit::civicrm_direct_debit_civicrm_pageRun_produceSetUpLetter ($mandate_id , $activity_dao->source_contact_id , $default_dd_template , false , $contribution_id , $first_collectionDate);
+            
+            // Create PDF Setup File Entry for the person
+            civicrm_direct_debit_civicrm_pageRun_insert_file_for_contact( $pdfletterArray['file_name'] , $activity_dao->source_contact_id , 'SetUp Letter');
+            
+            if ($count > 0)
+                $html .= "<div STYLE='page-break-after: always'></div>";
+                
+            $html .= $pdfletterArray['content'];
+            			
+			
+            $update_activity_sql = "UPDATE civicrm_activity SET status_id = '2' WHERE id = '$activity_id'";
+            $update_activity_dao = CRM_Core_DAO::executeQuery( $update_activity_sql );
+            
+            $target_sql = "SELECT * FROM civicrm_activity_target WHERE activity_id = '$activity_id'";
+            $target_dao = CRM_Core_DAO::executeQuery( $target_sql );
+            $target_dao->fetch();
+            
+            // Create First Collection date activity
+            $activity_label = civicrm_direct_debit_civicrm_post_get_activity_subject(CIVICRM_DIRECT_DEBIT_FIRST_COLLECTION_ACTIVITY_ID , $cTypedao->contribution_type_id);
+			
+            $subject = $activity_label.", Mandate Id - ".$mandate_id;
+			
+            $activity_id  = civicrm_direct_debit_civicrm_post_createActivity (CIVICRM_DIRECT_DEBIT_FIRST_COLLECTION_ACTIVITY_ID , $activity_dao->source_contact_id , $target_dao->target_contact_id , $subject , 1 , $first_collectionDate , $mandate_id);
+            
+            $sql = "UPDATE civicrm_value_direct_debit_details SET activity_id = '$activity_id' WHERE entity_id = '$contribution_id'";
+            $dao = CRM_Core_DAO::executeQuery( $sql );
+            
+            $current_date = date( 'YmdHis' );
+             
+            // Get date in Mysql Date Format   
+			/* Fixed the error in the below line by adding $collection_day on 03112011 (boby).--start-- */
+            $first_collectionDate = civicrm_direct_debit_civicrm_pageRun_get_valid_collection_date($collection_day , date("m") , 'YmdHis' );
+			/* -----end-----*/
+			
+            $sql = "UPDATE civicrm_value_bank_details SET start_date = '$first_collectionDate' , authorization_date = '$current_date' WHERE id = '$mandate_id'";			
+            $dao = CRM_Core_DAO::executeQuery( $sql );
+            
+            $contact_id = $activity_dao->source_contact_id;			
+            $contact_params = array('contact_id' => $contact_id);
+            $contact_details = &civicrm_contact_get( $contact_params );            
+            $url = CRM_Utils_System::url( 'civicrm/contact/view', "reset=1&cid={$contact_id}"  );
+            $status[] = " Contact ID: " . $contact_id . "  - <a href =\"$url\"> ". $contact_details[$contact_id]['display_name'] . " </a> ";
+            
+            $count++;
+          }
+          
+          $file_name = "basclodg ".date('M').".txt";
+          $csv_path = $config->customFileUploadDir;
+          $filePathName   = "{$csv_path}/{$file_name}";
+        
+          $handle = fopen($filePathName, 'w');
+          file_put_contents($filePathName, $csv_string);
+          fclose($handle);
+          
+          while(list($k,$v)=@each($mandateArray)) {
+              civicrm_direct_debit_civicrm_pageRun_insert_file_for_mandate( $file_name , $k , $v , 'Authorisation File');    
+          }
+          
+          $referer_page = CRM_Utils_Array::value('HTTP_REFERER', $_SERVER, '');
+          
+          if ($count == 0) {
+              $status = array(ts('No Authorisation file produced, as there are no new Direct Debit Signup'));
+          } else {
+              $all_letters_file_name = "Set_Up_Letters_".date('YmdHis').".pdf";
+              $fileContent = DirectDebit_Utils_DirectDebit::civicrm_direct_debit_civicrm_pageRun_html2pdf( $html , $all_letters_file_name  , "external");
+              $filePathName   = "{$csv_path}/{$all_letters_file_name}";
+              $handle = fopen($filePathName, 'w');
+              
+              file_put_contents($filePathName, $fileContent);
+              fclose($handle);
+              
+              $donwloadPath = $config->userFrameworkBaseURL."/sites/default/files/civicrm/custom/".$all_letters_file_name;
+              $status[] = ts('Authorisation file(s) produced: %1'       , array(1 => $count));
+              $status = array_reverse($status);
+              $status[] =  ts("To download all setup letters, please click <a href='".$donwloadPath."' target='_blank'>here</a>
+              <!--<br /><div class='messages status'>
+              <div class='icon inform-icon'></div>
+              Important: Please download the setup lettes, if you want to print them in one go.</div>-->");
+          }                
+                        
+          $status = implode( '<br/>', $status );
+          CRM_Core_Session::setStatus( $status );
+          header("Location: $referer_page");
+          CRM_Utils_System::civiExit( );
+    }
+    
+}    
+
+/**
+ * Function to save the DD setup letter PDF file against contact
+ */
+function civicrm_direct_debit_civicrm_pageRun_insert_file_for_contact( $file_name , $contact_id , $file_type ) {
+    $upload_date = date('Y-m-d H:i:s');
+    
+    $file_sql = "INSERT INTO civicrm_file SET mime_type = %1 , uri = %2 , upload_date=%3";
+    $file_params  = array( 
+                          1 => array( "text/csv"   , 'String' ) ,
+                          2 => array( $file_name   , 'String' ) ,
+                          3 => array( $upload_date   , 'String' )  
+                         );
+    $file_dao = CRM_Core_DAO::executeQuery( $file_sql, $file_params );
+    //print_r ($file_dao);exit;
+
+    // Get the File Id after Insert
+    // Fix me - mysql_insert_id not working  
+    //$file_id = mysql_insert_id();
+    $select_sql = "SELECT id FROM civicrm_file WHERE mime_type = %1 AND uri = %2 AND upload_date = %3  ORDER BY id DESC";
+    $select_dao = CRM_Core_DAO::executeQuery( $select_sql, $file_params );
+    
+    $select_dao->fetch();
+    $file_id = $select_dao->id;
+    
+    $custom_sql = "INSERT INTO civicrm_entity_file SET entity_id = %1 , entity_table = %2 , file_id = %3";
+    $custom_params  = array( 
+                          1 => array( $contact_id   , 'Integer' ) ,
+                          2 => array('civicrm_contact' , 'String') ,
+                          3 => array( $file_id   , 'Integer' ) 
+                         );
+    $custom_dao = CRM_Core_DAO::executeQuery( $custom_sql, $custom_params );
+    
+    $contact_file_sql = "INSERT INTO civicrm_value_direct_debit_files SET entity_id = %1 , direct_debit_file_type = %2 , direct_debit_related_file = %3";
+    $contact_file_params  = array( 
+                          1 => array( $contact_id   , 'Integer' ) ,
+                          2 => array( $file_type , 'String') ,
+                          3 => array( $file_id   , 'Integer' ) 
+                         );
+    $contact_file_dao = CRM_Core_DAO::executeQuery( $contact_file_sql, $contact_file_params );
+}
+
+/**
+ * Function to save the DD Logment file against the mandate(custom data)
+ */
+function civicrm_direct_debit_civicrm_pageRun_insert_file_for_mandate( $file_name , $mandate_id , $contact_id  ) {
+    $upload_date = date('Y-m-d H:i:s');
+    
+    $file_sql = "INSERT INTO civicrm_file SET mime_type = %1 , uri = %2 , upload_date=%3";
+    $file_params  = array( 
+                          1 => array( "text/csv"   , 'String' ) ,
+                          2 => array( $file_name   , 'String' ) ,
+                          3 => array( $upload_date   , 'String' )  
+                         );
+    $file_dao = CRM_Core_DAO::executeQuery( $file_sql, $file_params );
+
+    // Get the File Id after Insert
+    // Fix me - mysql_insert_id not working  
+    // $file_id = mysql_insert_id();
+    $select_sql = "SELECT id FROM civicrm_file WHERE mime_type = %1 AND uri = %2 AND upload_date = %3  ORDER BY id DESC";
+    $select_dao = CRM_Core_DAO::executeQuery( $select_sql, $file_params );
+    
+    $select_dao->fetch();
+    $file_id = $select_dao->id;
+    
+    $custom_sql = "INSERT INTO civicrm_entity_file SET entity_id = %1 , entity_table = %2 , file_id = %3";
+    $custom_params  = array( 
+                          1 => array( $contact_id   , 'Integer' ) ,
+                          2 => array('civicrm_contact' , 'String') ,
+                          3 => array( $file_id   , 'Integer' ) 
+                         );
+    $custom_dao = CRM_Core_DAO::executeQuery( $custom_sql, $custom_params );
+    
+    $mandate_file_sql = "UPDATE civicrm_value_bank_details SET authorization_file = %1 WHERE id = %2";
+    $mandate_file_params  = array( 
+                          1 => array( $file_id   , 'Integer' ) ,
+                          2 => array( $mandate_id , 'String') 
+                         );
+    $mandate_file_dao = CRM_Core_DAO::executeQuery( $mandate_file_sql, $mandate_file_params );
+}
+
+/**
+ * Function to get the Transcation Code when producing the Lodgement or Collection file, depending on the activity type  
+ */           
+function civicrm_direct_debit_civicrm_pageRun_get_transcation_code( $activity_type_id ) {
+
+    //depends on the activity type associated with the contribution
+    if($activity_type_id  == CIVICRM_DIRECT_DEBIT_AUTHORISAION_REQUIRED_ACTIVITY_ID)
+			$transcation_code	= '0N';
+		else if($activity_type_id  == CIVICRM_DIRECT_DEBIT_FIRST_COLLECTION_ACTIVITY_ID)
+			$transcation_code	= '01';
+		else if($activity_type_id  == CIVICRM_DIRECT_DEBIT_STANDARD_PAYMENT_ACTIVITY_ID)
+			$transcation_code	= '17';
+	  else if($activity_type_id  == CIVICRM_DIRECT_DEBIT_FINAL_PAYMENT_ACTIVITY_ID)
+			$transcation_code	= '19';		
+			
+		return $transcation_code;
+}
+
+/**
+ * Function to get the label for the activity. Settings it depending on contribution_type
+ */
+function civicrm_direct_debit_civicrm_post_get_activity_subject($activity_type_id = null , $contribution_type) {
+    /*if (!empty($activity_type_id)) {
+        $option_group_id = civicrm_direct_debit_civicrm_post_getOptionGroupId('activity_type');
+        $sql = "SELECT label FROM civicrm_option_value WHERE option_group_id = '$option_group_id' AND value = '$activity_type_id'";
+        $dao = CRM_Core_DAO::executeQuery( $sql );
+        $dao->fetch();
+        return $dao->label;
+    }*/
+    require_once 'CRM/Contribute/PseudoConstant.php';
+    return $contributionType = CRM_Contribute_PseudoConstant::contributionType($contribution_type);
+} 
+
+
+/**
+ * Function to get the first collection date for the DD payment. 
+ * First collection date is calculated depending upon the preferred collection date mentioned by the user.   
+ * If the preferred collection day falls within 14 days from the date of authorisation, first collection date is the preferred collection day of next month
+ * Else first collection date is the preferred collection day of current month    
+ */
+function civicrm_direct_debit_civicrm_pageRun_get_valid_collection_date ($day , $month , $format) {
+    
+    $current_date = date("Y-m-d");
+    $temp_date = strtotime($current_date);
+
+    if(empty($month))
+        $month = date("m");     
+    
+    $collection_date = date("Y-m-d" , mktime( 0 , 0 , 0 , date($month) , date($day) , date("Y")));
+    $temp_collection_date = strtotime($collection_date);
+        
+    if ($temp_collection_date < $temp_date) {
+        $month++;
+        return civicrm_direct_debit_civicrm_pageRun_get_valid_collection_date ($day , $month , $format );
+    }     
+    $diff = abs($temp_collection_date - $temp_date);
+    $days = floor(($diff - $years * 365*60*60*24 - $months*30*60*60*24)/ (60*60*24));
+    if ($days < 14) {
+        $month++;
+        return civicrm_direct_debit_civicrm_pageRun_get_valid_collection_date ($day , $month , $format);
+    } else {
+        $collection_date = date ( $format , $temp_collection_date );
+        return $collection_date;  
+    }
+}
+
+function civicrm_direct_debit_civicrm_post_getOptionGroupId($option_group_name){
+  	require_once 'CRM/Core/BAO/OptionGroup.php';
+  	$params = array("name" => $option_group_name,);
+  	$default = array();
+  	$optionGroup = CRM_Core_BAO_OptionGroup::retrieve($params, $default);
+  	
+  	if($optionGroup)
+  		return $optionGroup->id;
+  	else
+  		return;
+}
+
+function civicrm_direct_debit_civicrm_post_getOptionValueId($option_group_id, $option_value){
+  	require_once 'CRM/Core/BAO/OptionValue.php';
+  	$params = array("option_group_id" => $option_group_id,
+  					"name" => $option_value,);
+  	$default = array();
+  	$optionValue = CRM_Core_BAO_CustomField::retrieve($params, $default);
+  	
+  	if($optionValue)
+  		return $optionValue->id;
+  	else
+  		return;
+}
+
+function _civicrm_direct_debit_getCustomGroupID( $customGroupName ) {
+    require_once 'CRM/Utils/Type.php';
+    $customGroupName = CRM_Utils_Type::escape( $customGroupName, 'String');
+    return CRM_Core_DAO::getFieldValue( "CRM_Core_DAO_CustomGroup", $customGroupName, 'id', 'name' );
+}
+
+function _civicrm_direct_debit_getCustomFieldId($custom_group_id, $custom_field_name){
+	require_once('CRM/Core/BAO/CustomField.php');
+	$params = array("custom_group_id" => $custom_group_id,
+					"name" => $custom_field_name,);
+	$default = array();
+	$customField = CRM_Core_BAO_CustomField::retrieve($params, $default);
+	
+	if($customField)
+		return $customField->id;
+	else
+		return;
+}        			

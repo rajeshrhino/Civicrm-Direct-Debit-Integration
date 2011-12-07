@@ -1,0 +1,7 @@
+name = CiviCRM Direct Debit
+description = Direct Debit Payment Support for CiviCRM
+version = 4.2
+dependencies[] = civicrm
+package = CiviCRM
+core = 7.x
+php = 5.2
